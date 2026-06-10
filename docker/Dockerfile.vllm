@@ -1,0 +1,22 @@
+﻿FROM vllm/vllm-openai:v0.6.6
+
+ENV HF_HOME=/models/.cache \
+    TRANSFORMERS_CACHE=/models/.cache \
+    OUTLINES_CACHE_DIR=/tmp/outlines_cache \
+    XDG_CACHE_HOME=/tmp/cache \
+    NUMBA_CACHE_DIR=/tmp/numba_cache
+
+RUN mkdir -p /tmp/outlines_cache /tmp/cache /tmp/numba_cache /models && \
+    chmod -R 777 /tmp /models
+
+WORKDIR /models
+EXPOSE 8000
+
+CMD ["--model", "/models/llama-3-8b-awq", \
+     "--quantization", "awq", \
+     "--dtype", "float16", \
+     "--max-model-len", "8192", \
+     "--gpu-memory-utilization", "0.85", \
+     "--max-num-seqs", "128", \
+     "--port", "8000", \
+     "--host", "0.0.0.0"]

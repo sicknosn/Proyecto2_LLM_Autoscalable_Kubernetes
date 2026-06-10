@@ -1,0 +1,12 @@
+﻿apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vllm-config
+  namespace: llm-serving
+data:
+  MODEL_NAME: "TheBloke/Llama-3-8B-Instruct-AWQ"
+  MAX_MODEL_LEN: "8192"
+  GPU_MEMORY_UTILIZATION: "0.85"
+  MAX_NUM_SEQS: "128"
+  MAX_NUM_BATCHED_TOKENS: "8192"
+  TENSOR_PARALLEL_SIZE: "1"

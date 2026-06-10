@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LLM Chat — Llama 3 8B | Proyecto 2 AKS</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f1117;
+      color: #e8e8e8;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      background: #1a1d27;
+      border-bottom: 1px solid #2d2d3d;
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .logo {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+    }
+    header h1 { font-size: 16px; font-weight: 600; color: #f0f0f0; }
+    header span { font-size: 12px; color: #6b7280; margin-left: 4px; }
+    .status {
+      margin-left: auto;
+      display: flex; align-items: center; gap: 6px;
+      font-size: 12px; color: #6b7280;
+    }
+    .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #22c55e;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .chat-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      max-width: 860px;
+      width: 100%;
+      margin: 0 auto;
+    }
+    .message {
+      display: flex;
+      gap: 12px;
+      animation: fadeIn 0.2s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; } }
+    .avatar {
+      width: 32px; height: 32px; border-radius: 8px;
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 600;
+    }
+    .user .avatar { background: #6366f1; color: white; }
+    .assistant .avatar { background: #1e293b; color: #a78bfa; border: 1px solid #334155; }
+    .bubble {
+      background: #1a1d27;
+      border: 1px solid #2d2d3d;
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-size: 14px;
+      line-height: 1.7;
+      max-width: 720px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .user .bubble {
+      background: #1e1b4b;
+      border-color: #3730a3;
+    }
+    .typing .bubble {
+      display: flex; gap: 4px; align-items: center;
+      padding: 16px;
+    }
+    .typing-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: #6366f1;
+      animation: bounce 1.2s infinite;
+    }
+    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce {
+      0%, 80%, 100% { transform: translateY(0); }
+      40% { transform: translateY(-6px); }
+    }
+    .meta {
+      font-size: 11px; color: #4b5563;
+      margin-top: 4px; padding-left: 44px;
+    }
+    .input-area {
+      background: #1a1d27;
+      border-top: 1px solid #2d2d3d;
+      padding: 16px 24px;
+    }
+    .input-row {
+      max-width: 860px;
+      margin: 0 auto;
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+    }
+    textarea {
+      flex: 1;
+      background: #0f1117;
+      border: 1px solid #2d2d3d;
+      border-radius: 10px;
+      color: #e8e8e8;
+      font-size: 14px;
+      padding: 12px 14px;
+      resize: none;
+      min-height: 44px;
+      max-height: 160px;
+      outline: none;
+      font-family: inherit;
+      line-height: 1.5;
+      transition: border-color 0.2s;
+    }
+    textarea:focus { border-color: #6366f1; }
+    textarea::placeholder { color: #4b5563; }
+    button {
+      background: #6366f1;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      width: 44px; height: 44px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+      transition: background 0.2s, transform 0.1s;
+      flex-shrink: 0;
+    }
+    button:hover { background: #4f46e5; }
+    button:active { transform: scale(0.95); }
+    button:disabled { background: #374151; cursor: not-allowed; }
+    .settings {
+      max-width: 860px; margin: 0 auto 10px;
+      display: flex; gap: 8px; align-items: center;
+      flex-wrap: wrap;
+    }
+    .settings label { font-size: 12px; color: #6b7280; }
+    .settings input[type=range] { width: 100px; accent-color: #6366f1; }
+    .settings span { font-size: 12px; color: #a78bfa; min-width: 28px; }
+    .kpi-bar {
+      max-width: 860px; margin: 0 auto 8px;
+      display: flex; gap: 16px;
+      font-size: 11px; color: #4b5563;
+    }
+    .kpi-bar b { color: #6366f1; }
+    .welcome {
+      text-align: center;
+      padding: 48px 24px;
+      color: #4b5563;
+    }
+    .welcome h2 { font-size: 20px; color: #6366f1; margin-bottom: 8px; }
+    .welcome p { font-size: 13px; line-height: 1.6; }
+    .chips {
+      display: flex; gap: 8px; flex-wrap: wrap;
+      justify-content: center; margin-top: 16px;
+    }
+    .chip {
+      background: #1a1d27;
+      border: 1px solid #2d2d3d;
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-size: 12px; color: #9ca3af;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s;
+    }
+    .chip:hover { border-color: #6366f1; color: #a78bfa; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🦙</div>
+  <div>
+    <h1>Llama 3 8B Chat <span>AWQ · AKS · GPU T4 - Misael Mendoza</span></h1>
+  </div>
+  <div class="status">
+    <div class="dot" id="statusDot"></div>
+    <span id="statusText">Conectando...</span>
+  </div>
+</header>
+
+<div class="chat-container" id="chat">
+  <div class="welcome" id="welcome">
+    <h2>Proyecto 2 — LLM Autoscalable en Kubernetes</h2>
+    <p>Llama 3 8B corriendo en GPU T4 sobre AKS · vLLM · AWQ quantization</p>
+    <div class="chips">
+      <div class="chip" onclick="sendSuggestion(this)">¿Qué es Kubernetes?</div>
+      <div class="chip" onclick="sendSuggestion(this)">Explica qué es un GPU en IA</div>
+      <div class="chip" onclick="sendSuggestion(this)">¿Cómo funciona el autoscaling?</div>
+      <div class="chip" onclick="sendSuggestion(this)">Escribe un haiku sobre DevOps</div>
+    </div>
+  </div>
+</div>
+
+<div class="input-area">
+  <div class="kpi-bar" id="kpiBar" style="display:none">
+    <span>Latencia: <b id="kpiLatency">—</b></span>
+    <span>Tokens: <b id="kpiTokens">—</b></span>
+    <span>Modelo: <b>/models/llama-3-8b-awq</b></span>
+  </div>
+  <div class="settings">
+    <label>Max tokens:</label>
+    <input type="range" min="50" max="500" value="200" id="maxTokens"
+           oninput="document.getElementById('tokVal').textContent=this.value">
+    <span id="tokVal">200</span>
+    <label style="margin-left:12px">Temp:</label>
+    <input type="range" min="0" max="100" value="70" id="temperature"
+           oninput="document.getElementById('tempVal').textContent=(this.value/100).toFixed(1)">
+    <span id="tempVal">0.7</span>
+  </div>
+  <div class="input-row">
+    <textarea id="input" placeholder="Escribe tu mensaje..." rows="1"
+      onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send()}"
+      oninput="autoResize(this)"></textarea>
+    <button id="sendBtn" onclick="send()">➤</button>
+  </div>
+</div>
+
+<script>
+  const API_URL = window.location.origin;
+  const MODEL   = "/models/llama-3-8b-awq";
+  let history   = [];
+  let busy      = false;
+
+  async function checkStatus() {
+    try {
+      const r = await fetch(API_URL + "/health");
+      if (r.ok) {
+        document.getElementById("statusDot").style.background = "#22c55e";
+        document.getElementById("statusText").textContent = "En línea";
+      }
+    } catch {
+      document.getElementById("statusDot").style.background = "#ef4444";
+      document.getElementById("statusText").textContent = "Sin conexión";
+    }
+  }
+
+  function autoResize(el) {
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 160) + "px";
+  }
+
+  function sendSuggestion(el) {
+    document.getElementById("input").value = el.textContent;
+    send();
+  }
+
+  function addMessage(role, content, ms) {
+    const welcome = document.getElementById("welcome");
+    if (welcome) welcome.remove();
+
+    const chat = document.getElementById("chat");
+    const div  = document.createElement("div");
+    div.className = "message " + role;
+    div.id = "msg-" + Date.now();
+
+    const avatar = role === "user" ? "U" : "🦙";
+    const metaText = ms ? `${ms} ms` : "";
+
+    div.innerHTML = `
+      <div class="avatar">${avatar}</div>
+      <div>
+        <div class="bubble">${content}</div>
+        ${ms ? `<div class="meta">${metaText}</div>` : ""}
+      </div>`;
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+    return div;
+  }
+
+  function addTyping() {
+    const chat = document.getElementById("chat");
+    const div  = document.createElement("div");
+    div.className = "message assistant typing";
+    div.id = "typing";
+    div.innerHTML = `
+      <div class="avatar">🦙</div>
+      <div class="bubble">
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+      </div>`;
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  async function send() {
+    if (busy) return;
+    const input = document.getElementById("input");
+    const text  = input.value.trim();
+    if (!text) return;
+
+    busy = true;
+    document.getElementById("sendBtn").disabled = true;
+    input.value = "";
+    input.style.height = "auto";
+
+    addMessage("user", text);
+    history.push({ role: "user", content: text });
+    addTyping();
+
+    const t0 = Date.now();
+    try {
+      const resp = await fetch(API_URL + "/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer mi-api-key-proyecto2"
+        },
+        body: JSON.stringify({
+          model: MODEL,
+          messages: history,
+          max_tokens: parseInt(document.getElementById("maxTokens").value),
+          temperature: parseFloat(document.getElementById("temperature").value) / 100
+        })
+      });
+
+      const data   = await resp.json();
+      const ms     = Date.now() - t0;
+      const answer = data.choices?.[0]?.message?.content || JSON.stringify(data);
+
+      document.getElementById("typing")?.remove();
+      history.push({ role: "assistant", content: answer });
+      addMessage("assistant", answer, ms);
+
+      document.getElementById("kpiBar").style.display = "flex";
+      document.getElementById("kpiLatency").textContent = ms + " ms";
+      document.getElementById("kpiTokens").textContent  = data.usage?.completion_tokens || "—";
+
+    } catch (e) {
+      document.getElementById("typing")?.remove();
+      addMessage("assistant", "Error: " + e.message);
+    }
+
+    busy = false;
+    document.getElementById("sendBtn").disabled = false;
+    input.focus();
+  }
+
+  checkStatus();
+  setInterval(checkStatus, 30000);
+</script>
+</body>
+</html>

@@ -1,0 +1,136 @@
+﻿apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-server
+  namespace: llm-serving
+  labels:
+    app: vllm-server
+    version: v1.0.0
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vllm-server
+  template:
+    metadata:
+      labels:
+        app: vllm-server
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+      nodeSelector:
+        accelerator: nvidia-tesla-t4
+      tolerations:
+        - key: "sku"
+          operator: "Equal"
+          value: "gpu"
+          effect: "NoSchedule"
+        - key: "kubernetes.azure.com/scalesetpriority"
+          operator: "Equal"
+          value: "spot"
+          effect: "NoSchedule"
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                      - vllm-server
+              topologyKey: kubernetes.io/hostname
+      initContainers:
+        - name: model-downloader
+          image: python:3.11-slim
+          command:
+            - sh
+            - -c
+            - |
+              pip install -q huggingface_hub &&
+              python -c "
+              from huggingface_hub import snapshot_download
+              import os
+              snapshot_download(
+                repo_id=os.environ['MODEL_NAME'],
+                local_dir='/models/llama-3-8b-awq',
+                token=os.environ['HF_TOKEN']
+              )"
+          env:
+            - name: MODEL_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: vllm-config
+                  key: MODEL_NAME
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: llm-secrets
+                  key: HF_TOKEN
+          volumeMounts:
+            - name: model-storage
+              mountPath: /models
+          resources:
+            requests:
+              cpu: "1"
+              memory: "4Gi"
+            limits:
+              cpu: "2"
+              memory: "8Gi"
+      containers:
+        - name: vllm-server
+          image: acrllmproyecto.azurecr.io/llm-project/vllm-server:v1.0.0
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+              name: http
+          envFrom:
+            - configMapRef:
+                name: vllm-config
+          env:
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: llm-secrets
+                  key: HF_TOKEN
+          resources:
+            requests:
+              cpu: "4"
+              memory: "12Gi"
+              nvidia.com/gpu: "1"
+            limits:
+              cpu: "4"
+              memory: "14Gi"
+              nvidia.com/gpu: "1"
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            failureThreshold: 40
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /v1/models
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            failureThreshold: 3
+          volumeMounts:
+            - name: model-storage
+              mountPath: /models
+      volumes:
+        - name: model-storage
+          emptyDir:
+            sizeLimit: 15Gi

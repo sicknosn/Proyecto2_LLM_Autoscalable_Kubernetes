@@ -1,0 +1,17 @@
+﻿FROM python:3.11-slim AS deps
+ENV PIP_NO_CACHE_DIR=1
+WORKDIR /build
+COPY app/requirements.txt .
+RUN pip install --upgrade pip && pip install --prefix=/install -r requirements.txt
+
+FROM python:3.11-slim AS final
+ENV PYTHONUNBUFFERED=1 PATH="/install/bin:$PATH" \
+    PYTHONPATH="/install/lib/python3.11/site-packages"
+COPY --from=deps /install /install
+RUN addgroup --gid 1000 appuser && \
+    adduser --uid 1000 --gid 1000 --no-create-home --disabled-password --gecos "" appuser
+WORKDIR /app
+COPY --chown=appuser:appuser app/ ./
+USER appuser
+EXPOSE 8080
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "2"]
